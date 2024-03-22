@@ -15,6 +15,9 @@ enum { SYS_cputs = 0,
        SYS_yield,
        SYS_ipc_try_send,
        SYS_ipc_recv,
+       SYS_reduce_priority,
+       SYS_check_priority,
+       SYS_set_priority,
        NSYSCALLS };
 
 #endif /* !JOS_INC_SYSCALL_H */

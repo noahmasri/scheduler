@@ -6,10 +6,15 @@
 #include <inc/env.h>
 #include <kern/cpu.h>
 
+extern struct sched_stats sched_stats;
 extern struct Env *envs;           // All environments
 #define curenv (thiscpu->cpu_env)  // Current environment
 extern struct Segdesc gdt[];
 
+#ifdef MLFQ
+void delete_from_queue(struct Env *e);
+void update_queue(struct Env *e);
+#endif
 void env_init(void);
 void env_init_percpu(void);
 int env_alloc(struct Env **e, envid_t parent_id);

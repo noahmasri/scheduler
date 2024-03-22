@@ -17,7 +17,6 @@
 
 static void boot_aps(void);
 
-
 void
 i386_init(void)
 {
@@ -58,7 +57,7 @@ i386_init(void)
 	// Don't touch -- used by grading script!
 	ENV_CREATE(TEST, ENV_TYPE_USER);
 
-// Hack horrible mal para la corrección de la parte 1.
+// Hack horrible mal para la correccion de la parte 1.
 // -d
 #define STRING(x) STRNG_(x)
 #define STRNG_(x) #x
@@ -68,17 +67,13 @@ i386_init(void)
 		ENV_CREATE(TEST, ENV_TYPE_USER);
 #else
 	// Touch all you want.
-	ENV_CREATE(user_hello, ENV_TYPE_USER);
-	ENV_CREATE(user_hello, ENV_TYPE_USER);
-	ENV_CREATE(user_hello, ENV_TYPE_USER);
+	ENV_CREATE(user_primes, ENV_TYPE_USER);
+	ENV_CREATE(user_primes, ENV_TYPE_USER);
+	ENV_CREATE(user_primes, ENV_TYPE_USER);
 #endif  // TEST*
 
-	// Eliminar esta llamada una vez completada la parte 1
-	// e implementado sched_yield().
-	env_run(&envs[0]);
-
 	// Schedule and run the first user environment!
-	// sched_yield();
+	sched_yield();
 }
 
 // While boot_aps is booting a given CPU, it communicates the per-core

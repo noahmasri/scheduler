@@ -52,6 +52,12 @@ lapicw(int index, int value)
 	lapic[ID];  // wait for write to finish, by reading
 }
 
+extern int
+lapicr(int index)
+{
+	return lapic[index];
+}
+
 void
 lapic_init(void)
 {

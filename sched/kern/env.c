@@ -18,6 +18,12 @@
 struct Env *envs = NULL;           // All environments
 static struct Env *env_free_list;  // Free environment list
                                    // (linked by Env->env_link)
+#ifdef MLFQ
+size_t runs = 0;
+const size_t S = 64;
+#define CANT_COLAS 5
+struct queue colas[CANT_COLAS] = { 0 };
+#endif
 
 #define ENVGENSHIFT 12  // >= LOGNENV
 
@@ -122,7 +128,6 @@ env_init(void)
 	}
 	envs[NENV - 1].env_link = NULL;
 	env_free_list = envs;
-
 	// Per-CPU part of the initialization
 	env_init_percpu();
 }
@@ -194,6 +199,23 @@ env_setup_vm(struct Env *e)
 	return 0;
 }
 
+#ifdef MLFQ
+void
+update_queue(struct Env *e)
+{
+	if (!colas[e->env_queue].first) {
+		colas[e->env_queue].first = e;
+		colas[e->env_queue].last = e;
+		e->next_in_q = e;
+	} else {
+		struct Env *queue_last = colas[e->env_queue].last;
+		queue_last->next_in_q = e;
+		colas[e->env_queue].last = e;
+		e->next_in_q = colas[e->env_queue].first;
+	}
+}
+#endif
+
 //
 // Allocates and initializes a new environment.
 // On success, the new environment is stored in *newenv_store.
@@ -226,7 +248,12 @@ env_alloc(struct Env **newenv_store, envid_t parent_id)
 	e->env_parent_id = parent_id;
 	e->env_type = ENV_TYPE_USER;
 	e->env_status = ENV_RUNNABLE;
+	e->arrival_time = sched_stats.total_runtime;
 	e->env_runs = 0;
+#ifdef MLFQ
+	e->env_queue = CANT_COLAS - 1;  // la mejor
+	update_queue(e);
+#endif
 
 	// Clear out all the saved register state,
 	// to prevent the register values
@@ -400,6 +427,31 @@ env_create(uint8_t *binary, enum EnvType type)
 	env->env_type = type;
 }
 
+#ifdef MLFQ
+void
+delete_from_queue(struct Env *e)
+{
+	if (colas[e->env_queue].first == e && colas[e->env_queue].last == e) {
+		colas[e->env_queue].first = NULL;
+		colas[e->env_queue].last = NULL;
+	} else {
+		struct Env *curr = colas[e->env_queue].first;
+		if (curr == e) {
+			colas[e->env_queue].first = e->next_in_q;
+			colas[e->env_queue].last->next_in_q =
+			        colas[e->env_queue].first;
+		} else {
+			while (curr && curr->next_in_q != e) {
+				curr = curr->next_in_q;
+			}
+			curr->next_in_q = e->next_in_q;
+			if (e == colas[e->env_queue].last) {
+				colas[e->env_queue].last = curr;
+			}
+		}
+	}
+}
+#endif
 //
 // Frees env e and all memory it uses.
 //
@@ -415,6 +467,15 @@ env_free(struct Env *e)
 	// gets reused.
 	if (e == curenv)
 		lcr3(PADDR(kern_pgdir));
+
+	// update stadistics
+	sched_stats.env_turnaround[sched_stats.dead_environments].envid =
+	        e->env_id;
+	sched_stats.env_turnaround[sched_stats.dead_environments].time =
+	        sched_stats.total_runtime - e->arrival_time;
+	sched_stats.env_turnaround[sched_stats.dead_environments].runs =
+	        e->env_runs;
+	sched_stats.dead_environments++;
 
 	// Note the environment's demise.
 	cprintf("[%08x] free env %08x\n", curenv ? curenv->env_id : 0, e->env_id);
@@ -440,6 +501,10 @@ env_free(struct Env *e)
 		e->env_pgdir[pdeno] = 0;
 		page_decref(pa2page(pa));
 	}
+
+#ifdef MLFQ
+	delete_from_queue(e);
+#endif
 
 	// free the page directory
 	pa = PADDR(e->env_pgdir);
@@ -510,7 +575,16 @@ env_run(struct Env *e)
 	//	and make sure you have set the relevant parts of
 	//	e->env_tf to sensible values.
 	// Your code here
-	curenv = e;
+
+	if ((curenv && curenv != e) || !curenv) {
+		if (curenv && curenv->env_status == ENV_RUNNING) {
+			curenv->env_status = ENV_RUNNABLE;
+		}
+		curenv = e;
+		curenv->env_status = ENV_RUNNING;
+		env_load_pgdir(curenv);
+	}
+	curenv->env_runs++;
 
 	// Needed if we run with multiple procesors
 	// Record the CPU we are running on for user-space debugging

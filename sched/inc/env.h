@@ -8,6 +8,8 @@
 #include <inc/memlayout.h>
 
 typedef int32_t envid_t;
+typedef int32_t priority_t;
+
 
 // An environment ID 'envid_t' has three parts:
 //
@@ -29,6 +31,30 @@ typedef int32_t envid_t;
 #define NENV (1 << LOG2NENV)
 #define ENVX(envid) ((envid) & (NENV - 1))
 
+struct env_turnaround {
+	int envid;
+	int time;
+	int runs;
+};
+
+struct env_run {
+	int envid;
+#ifdef MLFQ
+	size_t priority;
+#endif
+};
+
+struct sched_stats {
+	int total_runtime;
+	int sched_calls;
+#ifdef MLFQ
+	int amount_boosts;
+#endif
+	struct env_run envs_runs[4096];
+	int dead_environments;
+	struct env_turnaround env_turnaround[NENV];
+};
+
 // Values of env_status in struct Env
 enum { ENV_FREE = 0, ENV_DYING, ENV_RUNNABLE, ENV_RUNNING, ENV_NOT_RUNNABLE };
 
@@ -36,6 +62,14 @@ enum { ENV_FREE = 0, ENV_DYING, ENV_RUNNABLE, ENV_RUNNING, ENV_NOT_RUNNABLE };
 enum EnvType {
 	ENV_TYPE_USER = 0,
 };
+#ifdef MLFQ
+struct queue {
+	struct Env *first;
+	struct Env *last;
+};
+#define CANT_COLAS 5
+extern struct queue colas[CANT_COLAS];
+#endif
 
 struct Env {
 	struct Trapframe env_tf;  // Saved registers
@@ -46,6 +80,14 @@ struct Env {
 	unsigned env_status;      // Status of the environment
 	uint32_t env_runs;        // Number of times environment has run
 	int env_cpunum;           // The CPU that the env is running on
+	int arrival_time;
+
+#ifdef MLFQ
+	priority_t env_queue;  // The env's priority
+	struct Env *next_in_q;
+	int runtime;
+	// Next env in queue
+#endif
 
 	// Address space
 	pde_t *env_pgdir;  // Kernel virtual address of page dir

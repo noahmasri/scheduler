@@ -31,6 +31,9 @@ user/fairness.c
 user/divzero.c
 user/faultbadhandler.c
 user/buggyhello2.c
+user/timeboost.c
+user/childboost.c
+user/reducepriority.c
 fs/test.c
 lib/panic.c
 lib/readline.c

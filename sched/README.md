@@ -14,8 +14,13 @@ make
 
 ## Pruebas
 
+* Para correr las pruebas con round robin:
 ```bash
-make grade
+make -B -e USE_ROUND_ROBIN=true grade
+```
+* Para correr las pruebas con MLFQ:
+```bash
+make -B -e USE_MLFQ=true grade
 ```
 
 ## Linter
