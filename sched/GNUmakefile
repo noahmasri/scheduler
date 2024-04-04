@@ -15,6 +15,19 @@ ifeq ($(V),0)
 override V = @
 endif
 
+#for choosing which scheduler to use
+# To compile using different strategies:
+# - For Round Robin
+#     make -B -e USE_ROUND_ROBIN=true
+# - For MLFQ
+#     make -B -e USE_MLFQ=true
+ifdef USE_ROUND_ROBIN
+	CFLAGS += -D ROUND_ROBIN
+endif
+ifdef USE_MLFQ
+	CFLAGS += -D MLFQ
+endif
+
 # '$(V)' controls whether the lab makefiles print verbose commands (the
 # actual shell commands run by Make), as well as the "overview" commands
 # (such as '+ cc lib/readline.c').

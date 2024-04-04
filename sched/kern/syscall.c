@@ -185,6 +185,67 @@ sys_env_set_status(envid_t envid, int status)
 	// panic("sys_env_set_status not implemented");
 }
 
+static priority_t
+sys_check_priority(void)
+{
+#ifdef MLFQ
+	return thiscpu->cpu_env->env_queue;
+#endif
+
+	return 0;  // if there are no priorities, priority is 0
+}
+
+// increases child priority, returns 0 on success
+static int
+sys_set_priority(envid_t envid, size_t priority)
+{
+	struct Env *env;
+	int r;
+	if ((r = envid2env(envid, &env, 1)))
+		return r;
+
+	// cannot change priority of a process thats not your child
+	if (thiscpu->cpu_env->env_id != env->env_parent_id) {
+		return -1;
+	}
+#ifdef MLFQ
+	// cannot decrease priority
+	if (env->env_queue >= priority)
+		return -1;
+
+	if (priority > CANT_COLAS - 1)
+		priority = CANT_COLAS - 1;
+	delete_from_queue(env);
+	env->env_queue = priority;
+	update_queue(env);
+	env->runtime = 0;
+#endif
+	return 0;
+}
+
+// decreases process priority by 1
+static int
+sys_reduce_priority(size_t priority)
+{
+#ifdef MLFQ
+
+	// cannot reduce other processes priorities
+	struct Env *env = thiscpu->cpu_env;
+	if (priority >= env->env_queue)
+		return -1;
+
+	if (env->env_queue == 0)
+		return 0;
+
+	delete_from_queue(env);
+	env->env_queue = priority;
+	update_queue(env);
+	env->runtime = 0;
+#endif
+
+	return 0;  // if there are no priorities, priority cant be changed
+}
+
 // Set the page fault upcall for 'envid' by modifying the corresponding struct
 // Env's 'env_pgfault_upcall' field.  When 'envid' causes a page fault, the
 // kernel will push a fault record onto the exception stack, then branch to
@@ -462,6 +523,12 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		return sys_ipc_try_send(a1, a2, (void *) a3, a4);
 	case SYS_env_set_pgfault_upcall:
 		return sys_env_set_pgfault_upcall(a1, (void *) a2);
+	case SYS_check_priority:
+		return sys_check_priority();
+	case SYS_reduce_priority:
+		return sys_reduce_priority(a1);
+	case SYS_set_priority:
+		return sys_set_priority(a1, a2);
 	case SYS_yield:
 		sys_yield();  // No return
 	default:
